@@ -20,7 +20,8 @@ COMMA := ,
 
 -include $(O)/AutoGen.make
 
-OBJ := $(SRC:%=$(O)/%.o)
+OBJ := $(patsubst %,$(O)/%.o,$(filter-out AutoGen.c,$(SRC))) \
+	$(patsubst %.c,$(O)/%.obj,$(filter AutoGen.c,$(SRC)))
 
 SRC := $(patsubst %,$(M)/%,$(filter-out AutoGen.c,$(SRC))) \
 	$(patsubst %,$(O)/%,$(filter AutoGen.c,$(SRC)))
@@ -142,7 +143,7 @@ $(O)/%.c.o: $(M)/%.c $(O)/AutoGen.h | $(O)
 	$(call msg,CC,$@)
 	$(Q)$(CC) -MMD -MF $@.deps $(CFLAGS) -c -o $@ $(INCLUDES) $<
 
-$(O)/AutoGen.c.o: $(O)/AutoGen.c $(O)/AutoGen.h | $(O)
+$(O)/AutoGen.obj: $(O)/AutoGen.c $(O)/AutoGen.h | $(O)
 	$(Q)mkdir -p $(@D)
 	$(call msg,CC,$@)
 	$(Q)$(CC) -MMD -MF $@.deps $(CFLAGS) -c -o $@ $(INCLUDES) $<
