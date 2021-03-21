@@ -57,13 +57,11 @@ def stripcomment(entry):
 def main():
     pcds = {}
     guids = {}
-    pkg_processed = set()
+    mod_pcd = set()
+    constructors = set()
+    destructors = set()
 
     def do_pkg(pkg):
-        if pkg in pkg_processed:
-            return
-        pkg_processed.add(pkg)
-
         dec = openconf(f'{EDK}/{pkg}/{pkg}.dec')
         dsc = openconf(f'{EDK}/{pkg}/{pkg}.dsc')
 
@@ -104,9 +102,30 @@ def main():
         guid_dec('Protocols')
         guid_dec(f'Protocols.{ARCH}')
 
+    def do_mod(pkg, mod):
+        inf = openconf(f'{EDK}/{pkg}/Library/{mod}/{mod}.inf')
+
+        def pdc_mod(section):
+            for sectionlst in iteratesecs(inf, section):
+                for entry in inf[sectionlst]:
+                    mod_pcd.add(stripcomment(entry))
+
+        pdc_mod('FeaturePcd')
+        pdc_mod('Pcd')
+        pdc_mod(f'FeaturePcd.{ARCH}')
+        pdc_mod(f'Pcd.{ARCH}')
+
+        if 'CONSTRUCTOR' in inf['Defines']:
+            constructors.add(inf['Defines']['CONSTRUCTOR'])
+
+        if 'DESTRUCTOR' in inf['Defines']:
+            destructors.add(inf['Defines']['DESTRUCTOR'])
+
+        return inf
+
     if PKG_NAME:
         do_pkg(PKG_NAME)
-        inf = openconf(f'{EDK}/{PKG_NAME}/Library/{MOD_NAME}/{MOD_NAME}.inf')
+        inf = do_mod(PKG_NAME, MOD_NAME)
         modguid = inf['Defines']['FILE_GUID']
     else:
         if os.path.exists(f'{O}/AutoGen.uuid'):
@@ -116,6 +135,9 @@ def main():
             modguid = str(uuid.uuid4())
             with open(f'{O}/AutoGen.uuid', 'w') as f:
                 f.write(modguid)
+
+        for lib in LIBS:
+            do_mod(*lib.split('.')[0].split('/'))
 
         for pkg in set(lib.split('/')[0] for lib in LIBS):
             do_pkg(pkg)
@@ -141,24 +163,13 @@ extern GUID  gEdkiiDscPlatformGuid;
 extern CHAR8 *gEfiCallerBaseName;
 ''')
 
-        mod_pcd = set()
+        if PKG_NAME:
+            for name in mod_pcd:
+                typ, value = pcds[name]
+                _, name = name.split('.')
+                modename, size = PCD_MODENAMESIZE[typ]
 
-        def pdc_mod(section):
-            for sectionlst in iteratesecs(inf, section):
-                for entry in inf[sectionlst]:
-                    mod_pcd.add(stripcomment(entry))
-
-        pdc_mod('FeaturePcd')
-        pdc_mod('Pcd')
-        pdc_mod(f'FeaturePcd.{ARCH}')
-        pdc_mod(f'Pcd.{ARCH}')
-
-        for name in mod_pcd:
-            typ, value = pcds[name]
-            _, name = name.split('.')
-            modename, size = PCD_MODENAMESIZE[typ]
-
-            f.write(f'''\
+                f.write(f'''\
 #define _PCD_TOKEN_{name}  0U
 extern const {typ} _gPcd_FixedAtBuild_{name};
 #define _PCD_GET_MODE_{modename}_{name}  _gPcd_FixedAtBuild_{name}
@@ -166,8 +177,7 @@ extern const {typ} _gPcd_FixedAtBuild_{name};
 #define _PCD_SIZE_{name} {size}
 #define _PCD_GET_MODE_SIZE_{name} _PCD_SIZE_{name}
 ''')
-
-        if not PKG_NAME:
+        else:
             f.write('''
 EFI_STATUS
 EFIAPI
@@ -240,7 +250,7 @@ UefiMain (
                 f.write(f'GLOBAL_REMOVE_IF_UNREFERENCED EFI_GUID '
                         f'{name} = {value};\n')
 
-            for name in pcds:
+            for name in mod_pcd:
                 typ, value = pcds[name]
 
                 # FIXME: See
@@ -261,29 +271,17 @@ extern const {typ} _gPcd_FixedAtBuild_{name};
 #define _PCD_GET_MODE_{modename}_{name}  _gPcd_FixedAtBuild_{name}
 ''')
 
-            f.write('''\
+            for name in {*constructors, *destructors}:
+                f.write(f'''\
 EFI_STATUS
 EFIAPI
-UefiBootServicesTableLibConstructor (
+{name} (
   IN EFI_HANDLE        ImageHandle,
   IN EFI_SYSTEM_TABLE  *SystemTable
   );
+''')
 
-EFI_STATUS
-EFIAPI
-UefiRuntimeServicesTableLibConstructor (
-  IN EFI_HANDLE        ImageHandle,
-  IN EFI_SYSTEM_TABLE  *SystemTable
-  );
-
-EFI_STATUS
-EFIAPI
-UefiLibConstructor (
-  IN EFI_HANDLE        ImageHandle,
-  IN EFI_SYSTEM_TABLE  *SystemTable
-  );
-
-
+            f.write('''
 VOID
 EFIAPI
 ProcessLibraryConstructorList (
@@ -291,21 +289,18 @@ ProcessLibraryConstructorList (
   IN EFI_SYSTEM_TABLE  *SystemTable
   )
 {
-  EFI_STATUS  Status;
-
-  Status = UefiBootServicesTableLibConstructor (ImageHandle, SystemTable);
+''')
+            if constructors:
+                f.write('  EFI_STATUS  Status;\n')
+            for name in constructors:
+                f.write(f'''
+  Status = {name} (ImageHandle, SystemTable);
   ASSERT_EFI_ERROR (Status);
+''')
 
-  Status = UefiRuntimeServicesTableLibConstructor (ImageHandle, SystemTable);
-  ASSERT_EFI_ERROR (Status);
+            f.write('}\n')
 
-  Status = UefiLibConstructor (ImageHandle, SystemTable);
-  ASSERT_EFI_ERROR (Status);
-
-}
-
-
-
+            f.write('''
 VOID
 EFIAPI
 ProcessLibraryDestructorList (
@@ -313,11 +308,19 @@ ProcessLibraryDestructorList (
   IN EFI_SYSTEM_TABLE  *SystemTable
   )
 {
+''')
+            if destructors:
+                f.write('  EFI_STATUS  Status;\n')
+            for name in destructors:
+                f.write(f'''
+  Status = {name} (ImageHandle, SystemTable);
+  ASSERT_EFI_ERROR (Status);
+''')
 
-}
+            f.write('}\n')
 
+            f.write('''
 const UINT32 _gUefiDriverRevision = 0x00000000U;
-
 
 EFI_STATUS
 EFIAPI
@@ -325,32 +328,8 @@ ProcessModuleEntryPointList (
   IN EFI_HANDLE        ImageHandle,
   IN EFI_SYSTEM_TABLE  *SystemTable
   )
-
 {
   return UefiMain (ImageHandle, SystemTable);
-}
-
-VOID
-EFIAPI
-ExitDriver (
-  IN EFI_STATUS  Status
-  )
-{
-  if (EFI_ERROR (Status)) {
-    ProcessLibraryDestructorList (gImageHandle, gST);
-  }
-  gBS->Exit (gImageHandle, Status, 0, NULL);
-}
-
-GLOBAL_REMOVE_IF_UNREFERENCED const UINT8 _gDriverUnloadImageCount = 0U;
-
-EFI_STATUS
-EFIAPI
-ProcessModuleUnloadList (
-  IN EFI_HANDLE        ImageHandle
-  )
-{
-  return EFI_SUCCESS;
 }
 ''')
 
