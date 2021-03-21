@@ -20,7 +20,7 @@ COMMA := ,
 
 -include $(O)/AutoGen.make
 
-OBJ := $(SRC:%=$(O)/%.obj)
+OBJ := $(SRC:%=$(O)/%.o)
 
 SRC := $(patsubst %,$(M)/%,$(filter-out AutoGen.c,$(SRC))) \
 	$(patsubst %,$(O)/%,$(filter AutoGen.c,$(SRC)))
@@ -98,13 +98,13 @@ all: $(O)/$(BASE_NAME).efi
 clean:
 	$(call msg,CLEAN)
 	$(Q)test -d $(O) && find $(O) -name 'AutoGen.*' -delete || true
-	$(Q)test -d $(O) && find $(O) -name '*.obj' -delete || true
-	$(Q)test -d $(O) && find $(O) -name '*.obj.deps' -delete || true
+	$(Q)test -d $(O) && find $(O) -name '*.o' -delete || true
+	$(Q)test -d $(O) && find $(O) -name '*.o.deps' -delete || true
 	$(Q)test -d $(O) && find $(O) -name '*.i' -delete || true
 	$(Q)test -d $(O) && find $(O) -name '*.ii' -delete || true
 	$(Q)test -d $(O) && find $(O) -name '*.iii' -delete || true
-	$(Q)test -d $(O) && find $(O) -name '*.lib' -delete || true
-	$(Q)test -d $(O) && find $(O) -name '*.dll' -delete || true
+	$(Q)test -d $(O) && find $(O) -name '*.a' -delete || true
+	$(Q)test -d $(O) && find $(O) -name '*.so' -delete || true
 	$(Q)test -d $(O) && find $(O) -name '*.map' -delete || true
 	$(Q)test -d $(O) && find $(O) -name '*.debug' -delete || true
 	$(Q)test -d $(O) && find $(O) -name '*.txt' -delete || true
@@ -137,12 +137,12 @@ $(O)/AutoGen.c $(O)/AutoGen.h $(O)/AutoGen.make: $(O)/AutoGen.guid | $(O)
 		LIBS="$(LIBS)" \
 		$(PYTHON) $(DIR)_AutoGen.py
 
-$(O)/%.c.obj: $(M)/%.c $(O)/AutoGen.h | $(O)
+$(O)/%.c.o: $(M)/%.c $(O)/AutoGen.h | $(O)
 	$(Q)mkdir -p $(@D)
 	$(call msg,CC,$@)
 	$(Q)$(CC) -MMD -MF $@.deps $(CFLAGS) -c -o $@ $(INCLUDES) $<
 
-$(O)/AutoGen.c.obj: $(O)/AutoGen.c $(O)/AutoGen.h | $(O)
+$(O)/AutoGen.c.o: $(O)/AutoGen.c $(O)/AutoGen.h | $(O)
 	$(Q)mkdir -p $(@D)
 	$(call msg,CC,$@)
 	$(Q)$(CC) -MMD -MF $@.deps $(CFLAGS) -c -o $@ $(INCLUDES) $<
@@ -151,7 +151,7 @@ $(O)/AutoGen.c.obj: $(O)/AutoGen.c $(O)/AutoGen.h | $(O)
 # 	$(call msg,GEN,$@)
 # 	$(Q)echo $(INCLUDES) | tr ' ' '\n' > $@
 
-$(O)/%.nasm.obj: $(M)/%.nasm $(O)/AutoGen.h | $(TRIM)
+$(O)/%.nasm.o: $(M)/%.nasm $(O)/AutoGen.h | $(TRIM)
 	$(Q)mkdir -p $(@D)
 	$(call msg,NASM,$@)
 	$(Q)#$(TRIM) --asm-file -o $(O)/$*.i -i $(O)/inc.lst $<
@@ -159,11 +159,11 @@ $(O)/%.nasm.obj: $(M)/%.nasm $(O)/AutoGen.h | $(TRIM)
 	$(Q)$(TRIM) --trim-long --source-code -o $(O)/$*.iii $(O)/$*.ii
 	$(Q)$(NASM) $(INCLUDES) $(NASM_FLAGS) -o $@ $(O)/$*.iii
 
-$(O)/$(BASE_NAME).lib: $(OBJ) | $(O)
+$(O)/$(BASE_NAME).a: $(OBJ) | $(O)
 	$(call msg,AR,$@)
 	$(Q)$(AR) cr $@ $^
 
-$(BASE_O)/%.lib: | $(O)
+$(BASE_O)/%.a: | $(O)
 	$(call msg,DESCEND,$@)
 	$(Q)$(MAKE) \
 		-f $(DIR)Makefile \
@@ -173,18 +173,18 @@ $(BASE_O)/%.lib: | $(O)
 		BASE_O=$(BASE_O) \
 		LIB= \
 		NAME=$* \
-		$(BASE_O)/$*/$(notdir $*).lib
-	$(Q)cp $(BASE_O)/$*/$(notdir $*).lib $@
+		$(BASE_O)/$*/$(notdir $*).a
+	$(Q)cp $(BASE_O)/$*/$(notdir $*).a $@
 
-$(O)/$(BASE_NAME).dll: $(O)/$(BASE_NAME).lib $(LIBS:%=$(O)/%)
+$(O)/$(BASE_NAME).so: $(O)/$(BASE_NAME).a $(LIBS:%=$(O)/%)
 	$(call msg,LD,$@)
 	$(Q)$(CC) -o $@ $(LDFLAGS) -Wl,--start-group $(addprefix -Wl$(COMMA),$^) -Wl,--end-group $(CFLAGS) $(LDFLAGS2)
-	$(call msg,CP,$(patsubst %.dll,%.debug,$@))
-	$(Q)cp -f $@ $(patsubst %.dll,%.debug,$@)
+	$(call msg,CP,$(patsubst %.so,%.debug,$@))
+	$(Q)cp -f $@ $(patsubst %.so,%.debug,$@)
 	$(call msg,STRIP,$@)
 	$(Q)$(OBJCOPY) --strip-unneeded -R .eh_frame $@
 
-$(O)/$(BASE_NAME).efi: $(O)/$(BASE_NAME).dll | $(GENFW)
+$(O)/$(BASE_NAME).efi: $(O)/$(BASE_NAME).so | $(GENFW)
 	$(call msg,GENFW,$@)
 	$(Q)$(GENFW) -e $(MODULE_TYPE) -o $@ $<
 

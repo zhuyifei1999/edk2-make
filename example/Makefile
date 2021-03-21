@@ -1,17 +1,17 @@
 SRC += main.c
 
-LIBS += MdePkg/BaseDebugPrintErrorLevelLib.lib
-LIBS += MdePkg/BaseLib.lib
-LIBS += MdePkg/BasePcdLibNull.lib
-LIBS += MdePkg/BasePrintLib.lib
-LIBS += MdePkg/UefiApplicationEntryPoint.lib
-LIBS += MdePkg/UefiBootServicesTableLib.lib
-LIBS += MdePkg/UefiDebugLibConOut.lib
-LIBS += MdePkg/UefiDevicePathLib.lib
-LIBS += MdePkg/UefiMemoryAllocationLib.lib
-LIBS += MdePkg/UefiMemoryLib.lib
-LIBS += MdePkg/UefiRuntimeServicesTableLib.lib
-LIBS += MdePkg/UefiLib.lib
+LIBS += MdePkg/BaseDebugPrintErrorLevelLib.a
+LIBS += MdePkg/BaseLib.a
+LIBS += MdePkg/BasePcdLibNull.a
+LIBS += MdePkg/BasePrintLib.a
+LIBS += MdePkg/UefiApplicationEntryPoint.a
+LIBS += MdePkg/UefiBootServicesTableLib.a
+LIBS += MdePkg/UefiDebugLibConOut.a
+LIBS += MdePkg/UefiDevicePathLib.a
+LIBS += MdePkg/UefiMemoryAllocationLib.a
+LIBS += MdePkg/UefiMemoryLib.a
+LIBS += MdePkg/UefiRuntimeServicesTableLib.a
+LIBS += MdePkg/UefiLib.a
 
 NAME = example
 
