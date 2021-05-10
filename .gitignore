@@ -1,2 +1,14 @@
-Build/
+AutoGen.*
+*.o
+*.o.deps
+*.i
+*.ii
+*.iii
+*.a
+*.so
+*.map
+*.debug
+*.txt
+*.efi
+
 __pycache__/

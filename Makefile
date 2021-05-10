@@ -1,5 +1,5 @@
 M := $(CURDIR)
-O := $(M)/Build
+O := $(M)
 
 BASE_O ?= $(O)
 
@@ -161,10 +161,10 @@ $(BASE_O)/%.a: | $(O)
 		-f $(DIR)Makefile \
 		-C $(EDK)/$(dir $*)Library/$(notdir $*) \
 		M=$(EDK)/$(dir $*)Library/$(notdir $*) \
-		O=$(BASE_O)/$* \
-		BASE_O=$(BASE_O) \
+		O=$(abspath $(BASE_O))/$* \
+		BASE_O=$(abspath $(BASE_O)) \
 		NAME=$* \
-		$(BASE_O)/$*/$(notdir $*).a
+		$(abspath $(BASE_O))/$*/$(notdir $*).a
 	$(Q)cp $(BASE_O)/$*/$(notdir $*).a $@
 
 $(O)/$(BASE_NAME).so: $(O)/$(BASE_NAME).a $(lib-y:%=$(O)/%)
