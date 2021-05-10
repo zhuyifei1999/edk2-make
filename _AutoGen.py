@@ -199,11 +199,11 @@ UefiMain (
                         if compiler.upper() != 'GCC':
                             continue
 
-                    _, ext = entry.split('.')
+                    filename, ext = entry.split('.')
                     if ext == 'h':
                         continue
                     elif ext in ['c', 'nasm']:
-                        f.write(f'SRC += {entry}\n')
+                        f.write(f'obj-y += {filename}.o\n')
                     else:
                         raise ValueError(ext)
 
@@ -211,7 +211,7 @@ UefiMain (
         source(f'Sources.{ARCH}')
 
         if not PKG_NAME:
-            f.write('SRC += AutoGen.c\n')
+            f.write('obj-y += AutoGen.obj\n')
 
     if not PKG_NAME:
         with open(f'{O}/AutoGen.c', 'w') as f:

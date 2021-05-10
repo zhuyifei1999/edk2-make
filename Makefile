@@ -20,11 +20,7 @@ COMMA := ,
 
 -include $(O)/AutoGen.make
 
-OBJ := $(patsubst %,$(O)/%.o,$(filter-out AutoGen.c,$(SRC))) \
-	$(patsubst %.c,$(O)/%.obj,$(filter AutoGen.c,$(SRC)))
-
-SRC := $(patsubst %,$(M)/%,$(filter-out AutoGen.c,$(SRC))) \
-	$(patsubst %,$(O)/%,$(filter AutoGen.c,$(SRC)))
+obj-y := $(patsubst %,$(O)/%,$(obj-y))
 
 define uniq =
 	$(eval seen :=)
@@ -40,7 +36,7 @@ PYTHON := python
 GENFW := $(EDK)/BaseTools/Source/C/bin/GenFw
 TRIM := $(EDK)/BaseTools/BinWrappers/PosixLike/Trim
 
-LIB_PKG = $(call uniq,MdePkg/ $(dir $(LIBS)))
+LIB_PKG = $(call uniq,MdePkg/ $(dir $(lib-y)))
 INCLUDES := \
 	-I$(M) \
 	-I$(O) \
@@ -90,7 +86,7 @@ endif
 
 all: $(O)/$(BASE_NAME).efi
 
--include $(OBJ:%=%.deps)
+-include $(obj-y:%=%.deps)
 
 .PHONY: run clean basetools basetools-clean
 .SECONDARY:
@@ -135,10 +131,10 @@ $(O)/AutoGen.c $(O)/AutoGen.h $(O)/AutoGen.make: $(O)/AutoGen.guid | $(O)
 		EDK=$(EDK) \
 		NAME=$(NAME) \
 		ARCH=$(ARCH) \
-		LIBS="$(LIBS)" \
+		LIBS="$(lib-y)" \
 		$(PYTHON) $(DIR)_AutoGen.py
 
-$(O)/%.c.o: $(M)/%.c $(O)/AutoGen.h | $(O)
+$(O)/%.o: $(M)/%.c $(O)/AutoGen.h | $(O)
 	$(Q)mkdir -p $(@D)
 	$(call msg,CC,$@)
 	$(Q)$(CC) -MMD -MF $@.deps $(CFLAGS) -c -o $@ $(INCLUDES) $<
@@ -148,19 +144,14 @@ $(O)/AutoGen.obj: $(O)/AutoGen.c $(O)/AutoGen.h | $(O)
 	$(call msg,CC,$@)
 	$(Q)$(CC) -MMD -MF $@.deps $(CFLAGS) -c -o $@ $(INCLUDES) $<
 
-# $(O)/inc.lst: | $(O)
-# 	$(call msg,GEN,$@)
-# 	$(Q)echo $(INCLUDES) | tr ' ' '\n' > $@
-
-$(O)/%.nasm.o: $(M)/%.nasm $(O)/AutoGen.h | $(TRIM)
+$(O)/%.o: $(M)/%.nasm $(O)/AutoGen.h | $(O) $(TRIM)
 	$(Q)mkdir -p $(@D)
 	$(call msg,NASM,$@)
-	$(Q)#$(TRIM) --asm-file -o $(O)/$*.i -i $(O)/inc.lst $<
 	$(Q)$(CC) -MMD -MF $@.deps $(PPFLAGS) $(INCLUDES) $< > $(O)/$*.ii
 	$(Q)$(TRIM) --trim-long --source-code -o $(O)/$*.iii $(O)/$*.ii
 	$(Q)$(NASM) $(INCLUDES) $(NASM_FLAGS) -o $@ $(O)/$*.iii
 
-$(O)/$(BASE_NAME).a: $(OBJ) | $(O)
+$(O)/$(BASE_NAME).a: $(obj-y) | $(O)
 	$(call msg,AR,$@)
 	$(Q)$(AR) cr $@ $^
 
@@ -172,12 +163,11 @@ $(BASE_O)/%.a: | $(O)
 		M=$(EDK)/$(dir $*)Library/$(notdir $*) \
 		O=$(BASE_O)/$* \
 		BASE_O=$(BASE_O) \
-		LIB= \
 		NAME=$* \
 		$(BASE_O)/$*/$(notdir $*).a
 	$(Q)cp $(BASE_O)/$*/$(notdir $*).a $@
 
-$(O)/$(BASE_NAME).so: $(O)/$(BASE_NAME).a $(LIBS:%=$(O)/%)
+$(O)/$(BASE_NAME).so: $(O)/$(BASE_NAME).a $(lib-y:%=$(O)/%)
 	$(call msg,LD,$@)
 	$(Q)$(CC) -o $@ $(LDFLAGS) -Wl,--start-group $(addprefix -Wl$(COMMA),$^) -Wl,--end-group $(CFLAGS) $(LDFLAGS2)
 	$(call msg,CP,$(patsubst %.so,%.debug,$@))
